@@ -14,7 +14,7 @@ import xlsxwriter
 from flask_login import AnonymousUserMixin, UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from passlib.apps import custom_app_context as pwd_context
-from redash import redis_connection, utils
+from redash import redis_connection, utils, settings
 from redash.destinations import (get_configuration_schema_for_destination_type,
                                  get_destination)
 from redash.metrics import database  # noqa: F401
@@ -28,7 +28,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.event import listens_for
 from sqlalchemy.ext.mutable import Mutable
 from sqlalchemy.inspection import inspect
-from sqlalchemy.orm import backref, joinedload, object_session, subqueryload
+from sqlalchemy.orm import backref, joinedload, object_session, subqueryload, aliased
 from sqlalchemy.orm.exc import NoResultFound  # noqa: F401
 from sqlalchemy.types import TypeDecorator
 from functools import reduce
@@ -860,6 +860,8 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
                 .filter(cls.id.in_(query_ids))
                 .order_by(Query.created_at.desc()))
 
+        q = AccessPermission.apply_view_permission_to_query(q, Query, user_id)
+
         if not drafts:
             q = q.filter(or_(Query.is_draft == False, Query.user_id == user_id))
 
@@ -895,7 +897,7 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
         return outdated_queries.values()
 
     @classmethod
-    def search(cls, term, group_ids, include_drafts=False):
+    def search(cls, term, group_ids, include_drafts=False, user_id=None):
         # TODO: This is very naive implementation of search, to be replaced with PostgreSQL full-text-search solution.
         where = (Query.name.ilike(u"%{}%".format(term)) |
                  Query.description.ilike(u"%{}%".format(term)))
@@ -910,10 +912,11 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
 
         where &= DataSourceGroup.group_id.in_(group_ids)
         query_ids = (
-            db.session.query(Query.id).join(
-                DataSourceGroup,
-                Query.data_source_id == DataSourceGroup.data_source_id)
-            .filter(where)).distinct()
+            db.session.query(Query.id)
+            .join( DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
+            .filter(where))
+
+        query_ids = AccessPermission.apply_view_permission_to_query(query_ids, Query, user_id).distinct()
 
         return Query.query.options(joinedload(Query.user)).filter(Query.id.in_(query_ids))
 
@@ -933,6 +936,8 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
                      Query.is_archived == False)
                  .group_by(Event.object_id, Query.id)
                  .order_by(db.desc(db.func.count(0))))
+
+        query = AccessPermission.apply_view_permission_to_query(query, Query, user_id)
 
         if user_id:
             query = query.filter(Event.user_id == user_id)
@@ -1050,6 +1055,30 @@ class AccessPermission(GFKBase, db.Model):
             q = q.filter(AccessPermission.grantor == grantor)
 
         return q
+
+    @classmethod
+    def apply_view_permission_to_query(cls, query, resource, user_id):
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            resource_id   = getattr(resource, 'id')
+            resource_type = getattr(resource, '__tablename__')
+            resource_fk   = getattr(resource, 'user_id')
+
+            query = query.outerjoin(cls, ((resource_id == cls.object_id) & (cls.object_type == resource_type)))
+
+            # Access permission of dashboard overrides query
+            # permissions. If the user has view access to a
+            # dashboard, all the queries belonging dashboard
+            # will be viewable by the user.
+            if resource == Query:
+                dashboard_ap = aliased(cls)
+                query = (query.outerjoin(Visualization, (resource_id == Visualization.query_id))
+                              .outerjoin(Widget, (Visualization.id == Widget.visualization_id))
+                              .outerjoin(dashboard_ap, ((Widget.dashboard_id == dashboard_ap.object_id) & (dashboard_ap.object_type == 'dashboards')))
+                              .filter((cls.grantee_id == user_id) | (resource_fk == user_id) | (dashboard_ap.grantee_id == user_id)))
+            else:
+                query = query.filter((cls.grantee_id == user_id) | (resource_fk == user_id))
+
+        return query
 
     def to_dict(self):
         d = {
@@ -1278,7 +1307,8 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
                 Dashboard.org == org)
             .group_by(Dashboard.id))
 
-        query = query.filter(or_(Dashboard.user_id == user_id, Dashboard.is_draft == False))
+        query = (AccessPermission.apply_view_permission_to_query(query, Dashboard, user_id)
+                                 .filter(or_(Dashboard.user_id == user_id, Dashboard.is_draft == False)))
 
         return query
 
@@ -1304,6 +1334,8 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
                  .group_by(Event.object_id, Dashboard.id)
                  .order_by(db.desc(db.func.count(0))))
 
+        query = AccessPermission.apply_view_permission_to_query(query, Dashboard, user_id)
+
         if for_user:
             query = query.filter(Event.user_id == user_id)
 
@@ -1312,8 +1344,11 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
         return query
 
     @classmethod
-    def get_by_slug_and_org(cls, slug, org):
-        return cls.query.filter(cls.slug == slug, cls.org == org).one()
+    def get_by_slug_and_org(cls, slug, org, user_id):
+        query = cls.query.filter(cls.slug == slug, cls.org == org)
+        query = AccessPermission.apply_view_permission_to_query(query, Dashboard, user_id)
+
+        return query.one()
 
     def __unicode__(self):
         return u"%s=%s" % (self.id, self.name)
