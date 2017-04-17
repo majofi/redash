@@ -23,7 +23,7 @@ from sqlalchemy import or_
 
 from passlib.apps import custom_app_context as pwd_context
 
-from redash import redis_connection, utils
+from redash import redis_connection, utils, settings
 from redash.destinations import get_destination, get_configuration_schema_for_destination_type
 from redash.permissions import has_access, view_only
 from redash.query_runner import get_query_runner, get_configuration_schema_for_query_runner_type
@@ -813,8 +813,11 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
             .outerjoin(AccessPermission, (Query.id == AccessPermission.object_id.cast(db.Integer)))
             .filter(Query.is_archived == False)
             .filter(DataSourceGroup.group_id.in_(group_ids))
-            .filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
             .order_by(Query.created_at.desc()))
+
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            q = q.filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
+
 
         if not drafts:
             q = q.filter(or_(Query.is_draft == False, Query.user_id == user_id))
@@ -865,9 +868,12 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
             db.session.query(Query.id)
             .join( DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
             .outerjoin(AccessPermission, (Query.id == AccessPermission.object_id.cast(db.Integer)))
-            .filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
-            .filter(where)).distinct()
+            .filter(where))
 
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            query_ids = query_ids.filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
+
+        query_ids = query_ids.distinct()
         return Query.query.options(joinedload(Query.user)).filter(Query.id.in_(query_ids))
 
     @classmethod
@@ -885,9 +891,11 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
                      DataSourceGroup.group_id.in_(group_ids),
                      or_(Query.is_draft == False, Query.user_id == user_id),
                      Query.is_archived == False)
-                 .filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
                  .group_by(Event.object_id, Query.id)
                  .order_by(db.desc(db.func.count(0))))
+
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            query = query.filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
 
         if user_id:
             query = query.filter(Event.user_id == user_id)
@@ -1230,8 +1238,9 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
                  (Dashboard.user_id == user_id) |
                  ((Widget.dashboard != None) & (Widget.visualization == None))),
                 Dashboard.org == org)
-            .filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == user_id)) | (Dashboard.user_id == user_id))
             .group_by(Dashboard.id))
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            query = query.filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == user_id)) | (Dashboard.user_id == user_id))
 
         query = query.filter(or_(Dashboard.user_id == user_id, Dashboard.is_draft == False))
 
@@ -1259,9 +1268,11 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
                      DataSourceGroup.group_id.in_(group_ids) |
                      (Dashboard.user_id == user_id) |
                      ((Widget.dashboard != None) & (Widget.visualization == None)))
-                 .filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == user_id)) | (Dashboard.user_id == user_id))
                  .group_by(Event.object_id, Dashboard.id)
                  .order_by(db.desc(db.func.count(0))))
+
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            query = query.filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == user_id)) | (Dashboard.user_id == user_id))
 
         if for_user:
             query = query.filter(Event.user_id == user_id)
@@ -1272,7 +1283,12 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
 
     @classmethod
     def get_by_slug_and_org(cls, slug, org, current_user):
-        return cls.query.outerjoin(AccessPermission, (Dashboard.id == AccessPermission.object_id.cast(db.Integer))).filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == current_user.id)) | (Dashboard.user_id == current_user.id)).filter(cls.slug == slug, cls.org==org).one()
+        query = cls.query.outerjoin(AccessPermission, (Dashboard.id == AccessPermission.object_id.cast(db.Integer))).filter(cls.slug == slug, cls.org==org)
+
+        if settings.FEATURE_ENABLE_VIEW_PERMISSION:
+            query = query.filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == current_user.id)) | (Dashboard.user_id == current_user.id))
+
+        return query.one()
 
     def __unicode__(self):
         return u"%s=%s" % (self.id, self.name)
