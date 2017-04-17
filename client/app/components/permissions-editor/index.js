@@ -47,7 +47,17 @@ const PermissionsEditorComponent = {
     };
 
       // Add new user to grantees list
-    this.addGrantee = (user) => {
+    this.addViewGrantee = (user) => {
+      this.newGrantees.selected = undefined;
+      const body = { access_type: 'view', user_id: user.id };
+      $http.post(this.aclUrl, body).success(() => {
+        user.alreadyGrantee = true;
+        loadGrantees();
+      });
+    };
+
+    // Add new user to grantees list
+    this.addModifyGrantee = (user) => {
       this.newGrantees.selected = undefined;
       const body = { access_type: 'modify', user_id: user.id };
       $http.post(this.aclUrl, body).success(() => {

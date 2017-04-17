@@ -46,7 +46,7 @@ class QuerySearchResource(BaseResource):
         term = request.args.get('q', '')
         include_drafts = request.args.get('include_drafts') is not None
 
-        return [q.to_dict(with_last_modified_by=False) for q in models.Query.search(term, self.current_user.group_ids, include_drafts=include_drafts)]
+        return [q.to_dict(with_last_modified_by=False) for q in models.Query.search(term, self.current_user.group_ids, include_drafts=include_drafts, user_id=self.current_user.id)]
 
 
 class QueryRecentResource(BaseResource):

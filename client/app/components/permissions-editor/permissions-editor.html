@@ -4,8 +4,21 @@
 </div>
 <div class="modal-body">
   <div style="overflow: auto; height: 300px">
-    <ui-select ng-model="$ctrl.newGrantee.selected" on-select="$ctrl.addGrantee($item)">
-       <ui-select-match placeholder="Add New User"></ui-select-match>
+    <ui-select ng-model="$ctrl.newGrantee.selected" on-select="$ctrl.addViewGrantee($item)">
+       <ui-select-match placeholder="Add View New User"></ui-select-match>
+       <ui-select-choices repeat="user in $ctrl.foundUsers | filter:$select.search"
+                         refresh="$ctrl.findUser($select.search)"
+                         refresh-delay="0"
+                         ui-disable-choice="user.alreadyGrantee">
+        <div>
+          <img ng-src="{{user.gravatar_url}}" height="24px">&nbsp;{{user.name}}
+          <small ng-if="user.alreadyGrantee">(already has permission)</small>
+        </div>
+       </ui-select-choices>
+    </ui-select>
+    <br/>
+    <ui-select ng-model="$ctrl.newGrantee.selected" on-select="$ctrl.addModifyGrantee($item)">
+       <ui-select-match placeholder="Add Modify New User"></ui-select-match>
        <ui-select-choices repeat="user in $ctrl.foundUsers | filter:$select.search"
                          refresh="$ctrl.findUser($select.search)"
                          refresh-delay="0"

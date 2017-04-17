@@ -810,8 +810,10 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
             .options(joinedload(Query.user),
                      joinedload(Query.latest_query_data).load_only('runtime', 'retrieved_at'))
             .join(DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
+            .outerjoin(AccessPermission, (Query.id == AccessPermission.object_id.cast(db.Integer)))
             .filter(Query.is_archived == False)
-            .filter(DataSourceGroup.group_id.in_(group_ids))\
+            .filter(DataSourceGroup.group_id.in_(group_ids))
+            .filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
             .order_by(Query.created_at.desc()))
 
         if not drafts:
@@ -845,7 +847,7 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
         return outdated_queries.values()
 
     @classmethod
-    def search(cls, term, group_ids, include_drafts=False):
+    def search(cls, term, group_ids, include_drafts=False, user_id=None):
         # TODO: This is very naive implementation of search, to be replaced with PostgreSQL full-text-search solution.
         where = (Query.name.ilike(u"%{}%".format(term)) |
                  Query.description.ilike(u"%{}%".format(term)))
@@ -860,9 +862,10 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
 
         where &= DataSourceGroup.group_id.in_(group_ids)
         query_ids = (
-            db.session.query(Query.id).join(
-                DataSourceGroup,
-                Query.data_source_id == DataSourceGroup.data_source_id)
+            db.session.query(Query.id)
+            .join( DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
+            .outerjoin(AccessPermission, (Query.id == AccessPermission.object_id.cast(db.Integer)))
+            .filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
             .filter(where)).distinct()
 
         return Query.query.options(joinedload(Query.user)).filter(Query.id.in_(query_ids))
@@ -873,6 +876,7 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
                  .filter(Event.created_at > (db.func.current_date() - 7))
                  .join(Event, Query.id == Event.object_id.cast(db.Integer))
                  .join(DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
+                 .outerjoin(AccessPermission, (Query.id == AccessPermission.object_id.cast(db.Integer)))
                  .filter(
                      Event.action.in_(['edit', 'execute', 'edit_name',
                                        'edit_description', 'view_source']),
@@ -881,6 +885,7 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
                      DataSourceGroup.group_id.in_(group_ids),
                      or_(Query.is_draft == False, Query.user_id == user_id),
                      Query.is_archived == False)
+                 .filter(((AccessPermission.object_type == "queries") & (AccessPermission.grantee_id == user_id)) | (Query.user_id == user_id))
                  .group_by(Event.object_id, Query.id)
                  .order_by(db.desc(db.func.count(0))))
 
@@ -1218,15 +1223,19 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
             .outerjoin(Visualization)
             .outerjoin(Query)
             .outerjoin(DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
+            .outerjoin(AccessPermission, (Dashboard.id == AccessPermission.object_id.cast(db.Integer)))
             .filter(
                 Dashboard.is_archived == False,
                 (DataSourceGroup.group_id.in_(group_ids) |
                  (Dashboard.user_id == user_id) |
                  ((Widget.dashboard != None) & (Widget.visualization == None))),
                 Dashboard.org == org)
+            .filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == user_id)) | (Dashboard.user_id == user_id))
             .group_by(Dashboard.id))
 
         query = query.filter(or_(Dashboard.user_id == user_id, Dashboard.is_draft == False))
+
+
 
         return query
 
@@ -1238,6 +1247,7 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
                  .outerjoin(Visualization)
                  .outerjoin(Query)
                  .outerjoin(DataSourceGroup, Query.data_source_id == DataSourceGroup.data_source_id)
+                 .outerjoin(AccessPermission, (Dashboard.id == AccessPermission.object_id.cast(db.Integer)))
                  .filter(
                      Event.created_at > (db.func.current_date() - 7),
                      Event.action.in_(['edit', 'view']),
@@ -1249,6 +1259,7 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
                      DataSourceGroup.group_id.in_(group_ids) |
                      (Dashboard.user_id == user_id) |
                      ((Widget.dashboard != None) & (Widget.visualization == None)))
+                 .filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == user_id)) | (Dashboard.user_id == user_id))
                  .group_by(Event.object_id, Dashboard.id)
                  .order_by(db.desc(db.func.count(0))))
 
@@ -1260,8 +1271,8 @@ class Dashboard(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model
         return query
 
     @classmethod
-    def get_by_slug_and_org(cls, slug, org):
-        return cls.query.filter(cls.slug == slug, cls.org==org).one()
+    def get_by_slug_and_org(cls, slug, org, current_user):
+        return cls.query.outerjoin(AccessPermission, (Dashboard.id == AccessPermission.object_id.cast(db.Integer))).filter(((AccessPermission.object_type == "dashboards") & (AccessPermission.grantee_id == current_user.id)) | (Dashboard.user_id == current_user.id)).filter(cls.slug == slug, cls.org==org).one()
 
     def __unicode__(self):
         return u"%s=%s" % (self.id, self.name)
