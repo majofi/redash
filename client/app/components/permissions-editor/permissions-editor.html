@@ -4,7 +4,7 @@
 </div>
 <div class="modal-body">
   <div style="overflow: auto; height: 300px">
-    <ui-select ng-model="$ctrl.newGrantee.selected" on-select="$ctrl.addViewGrantee($item)">
+    <ui-select ng-if="$ctrl.showViewPermission" ng-model="$ctrl.newGrantee.selected" on-select="$ctrl.addViewGrantee($item)">
        <ui-select-match placeholder="Add View New User"></ui-select-match>
        <ui-select-choices repeat="user in $ctrl.foundUsers | filter:$select.search"
                          refresh="$ctrl.findUser($select.search)"

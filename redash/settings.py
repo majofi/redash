@@ -242,6 +242,7 @@ ALLOW_PARAMETERS_IN_EMBEDS = parse_boolean(os.environ.get("REDASH_ALLOW_PARAMETE
 COMMON_CLIENT_CONFIG = {
     'allowScriptsInUserInput': ALLOW_SCRIPTS_IN_USER_INPUT,
     'showPermissionsControl': FEATURE_SHOW_PERMISSIONS_CONTROL,
+    'showViewPermission': FEATURE_ENABLE_VIEW_PERMISSION,
     'allowCustomJSVisualizations': FEATURE_ALLOW_CUSTOM_JS_VISUALIZATIONS,
     'dateFormat': DATE_FORMAT,
     'dateTimeFormat': "{0} HH:mm".format(DATE_FORMAT),

@@ -8,12 +8,13 @@ const PermissionsEditorComponent = {
     close: '&',
     dismiss: '&',
   },
-  controller($http, User) {
+  controller($http, User, clientConfig) {
     'ngInject';
 
     this.grantees = [];
     this.newGrantees = {};
     this.aclUrl = this.resolve.aclUrl.url;
+    this.showViewPermission = clientConfig.showViewPermission;
 
       // List users that are granted permissions
     const loadGrantees = () => {
