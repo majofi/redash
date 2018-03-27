@@ -1,0 +1,51 @@
+---
+
+- hosts: webservers
+  user: vagrant
+  sudo: True
+
+  tasks:
+    - include_vars: vars.yaml
+
+    - name: Clean artifact path
+      file:
+        state: absent
+        path: "{{ repo_dir }}"
+
+    - name: git pull project
+      git: repo={{repo_url}} dest={{repo_dir}} version={{repo_branch}} 
+      version: "{{ repo_branch }}"
+      accept_hostkey: yes
+      force: no
+      update: yes
+
+
+    - name: linksync with latest version
+      file:
+        src:  "{{repo_dir}}"
+        dest: "{{current_dir}}"
+        state: link
+
+    - name: linksync with latest version
+      file:
+        src:  "{{opt_dir}}/.env"
+        dest: "{{current_dir}}/.env"
+        state: link
+
+    - name: install python requirements
+      action: pip requirements={{current_dir}}/requirements.txt state=present
+
+    - name: restart server and webapp
+      command: /bin/true
+      notify:
+        - restart webapp
+        - restart nginx
+
+  handlers:
+
+    - name: restart webapp
+      action: service name=supervisor state=restarted
+
+    - name: restart nginx
+      action: service name=nginx state=restarted
+

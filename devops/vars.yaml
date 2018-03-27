@@ -1,0 +1,9 @@
+app_name: redash
+repo_url: https://github.com/modomoto/redash.git
+repo_remote: origin
+repo_branch: master
+current_dir: /opt/redash/current
+repo_dir: /opt/redash/latest
+opt_dir: /opt/redash
+log_dir: /opt/redash/log
+prod_url: http://10.0.0.1/
