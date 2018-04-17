@@ -1,7 +1,7 @@
 ---
 
 - hosts: webservers
-  user: vagrant
+  user: root
   sudo: True
 
   tasks:
@@ -34,6 +34,9 @@
 
     - name: install python requirements
       action: pip requirements={{current_dir}}/requirements.txt state=present
+
+    - name: run db migrations
+      shell: "cd {{current_dir}} && sudo -u redash bin/run ./manage.py db upgrade"
 
     - name: restart server and webapp
       command: /bin/true
