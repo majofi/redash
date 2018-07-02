@@ -126,6 +126,8 @@ export default function (ngModule) {
       enableColumnMenus: true,
       enableSorting: true,
       uiGridMinColWidths: {},
+      defaultRows: 9,
+      minRows: 9,
     };
 
     VisualizationProvider.registerVisualization({
