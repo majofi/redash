@@ -1,0 +1,100 @@
+<div class="form-horizontal">
+  <ul class="tab-nav">
+    <li ng-class="{active: currentTab == 'general'}">
+      <a ng-click="changeTab('general')">General</a>
+    </li>
+    <li ng-class="{active: currentTab == 'colWidths'}" ng-if="options.globalSeriesType != 'custom'">
+      <a ng-click="changeTab('colWidths')">Column Widths</a>
+    </li>
+    <li ng-class="{active: currentTab == 'pagination'}" ng-if="options.globalSeriesType != 'custom'">
+      <a ng-click="changeTab('pagination')">Pagination</a>
+    </li>
+  </ul>
+
+  <div ng-show="currentTab == 'general'">
+    <br>
+    <div class="form-group">
+      <label class="col-lg-6">Pin Column Left</label>
+      <div class="col-lg-6">
+        <select ng-options="name for name in queryResult.getColumnNames()" ng-model="visualization.options.uiGridPinLeftColumn" class="form-control">
+          <option value=""></option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="col-lg-6">Pin Column Right</label>
+      <div class="col-lg-6">
+        <select ng-options="name for name in queryResult.getColumnNames()" ng-model="visualization.options.uiGridPinRightColumn" class="form-control">
+          <option value=""></option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="col-lg-6">
+        <input type="checkbox" ng-model="visualization.options.enableColumnMenus">
+        <i class="input-helper"></i>Enable Column Menus
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col-lg-6">
+        <input type="checkbox" ng-model="visualization.options.uiGridShowColumnFooter">
+        <i class="input-helper"></i>Show Column Footer
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col-lg-6">
+        <input type="checkbox" ng-model="visualization.options.uiGridEnableFiltering">
+        <i class="input-helper"></i>Enable Filtering
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col-lg-6">
+        <input type="checkbox" ng-model="visualization.options.uiGridShowGridFooter">
+        <i class="input-helper"></i>Show Grid Footer
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col-lg-6">
+        <input type="checkbox" ng-model="visualization.options.enableSorting">
+        <i class="input-helper"></i>Enable Sorting
+      </div>
+    </div>
+  </div>
+
+  <div ng-show="currentTab == 'colWidths'">
+    <h4>Minimum width per column </h4>
+    <div ng-repeat="name in queryResult.getColumnNames()" class="form-group">
+      <label class="col-lg-6">{{name}}</label>
+      <div class="col-lg-6">
+        <input type="number" ng-model="visualization.options.uiGridMinColWidths[name]" min="1" class="form-control">
+      </div>
+    </div>
+  </div>
+
+  <div ng-show="currentTab == 'pagination'">
+    <h4>Pagination Options</h4>
+    <div class="form-group">
+      <div class="col-lg-6">
+        <input type="checkbox" ng-model="visualization.options.enablePagination">
+        <i class="input-helper"></i>Enable Pagination
+      </div>
+    </div>
+    <div ng-if="visualization.options.enablePagination">
+      <div class="form-group">
+        <label class="col-lg-6">Page Size</label>
+        <div class="col-lg-6">
+          <input type="number" ng-model="visualization.options.paginationPageSize">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="col-lg-6">Page Size Options(Comma delimited)</label>
+        <div class="col-lg-6">
+          <input type="text" ng-model="visualization.options.paginationPageSizes">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -20,6 +20,8 @@ import 'angular-moment';
 import 'brace';
 import 'angular-ui-ace';
 import 'angular-resizable';
+import 'angular-ui-grid/ui-grid.css';
+import 'angular-ui-grid';
 import { each, isFunction, extend } from 'lodash';
 
 import '@/lib/sortable';
@@ -54,6 +56,9 @@ const requirements = [
   'angularResizable',
   vsRepeat,
   'ui.sortable',
+  'ui.grid',
+  'ui.grid.pinning',
+  'ui.grid.resizeColumns',
 ];
 
 const ngModule = angular.module('app', requirements);
